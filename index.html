@@ -26,6 +26,7 @@
       cursor: pointer;
       width: 60px;
       height: 60px;
+      user-select: none;
     }
     .clicked {
       background: #ffcccc;
@@ -78,26 +79,30 @@
       }
     }
 
-    const seatStates = [];
+    const seatStates = []; // "X" 상태 저장 배열
 
     function createCell(index, value) {
       const div = document.createElement("div");
       div.className = "cell";
-      div.textContent = value;
       div.dataset.seatIndex = index;
 
+      // X 상태면 표시
       if (seatStates[index] === "X") {
         div.textContent = "×";
         div.classList.add("clicked");
+      } else {
+        div.textContent = value;
       }
 
       div.addEventListener("click", () => {
         const idx = parseInt(div.dataset.seatIndex);
         if (seatStates[idx] === "X") {
+          // X -> 원래 숫자(또는 빈칸)로 복구
           seatStates[idx] = null;
           div.textContent = value;
           div.classList.remove("clicked");
         } else {
+          // 숫자 -> X로 변경
           seatStates[idx] = "X";
           div.textContent = "×";
           div.classList.add("clicked");
@@ -131,22 +136,38 @@
         allNumbers.push(i);
       }
 
+      // 기존 X 상태 저장 (자리 배열 길이보다 길면 자름)
+      const existingXIndices = [];
+      for(let i=0; i<seatStates.length; i++) {
+        if(seatStates[i] === "X") existingXIndices.push(i);
+      }
+
       let seatValues = [];
 
       if (end - start + 1 <= 18) {
         let emptyCount = 18 - allNumbers.length;
-        for (let i = 0; i < emptyCount; i++) {
-          allNumbers.push("x");
-        }
         shuffle(allNumbers);
-        seatValues = allNumbers.map(v => exclude.includes(v) ? "" : (v === "x" ? "" : v));
+        let temp = allNumbers.map(v => exclude.includes(v) ? "" : v);
+        for (let i = 0; i < emptyCount; i++) temp.unshift(""); // 빈칸 왼쪽 아래 배치용 앞쪽 삽입
+        seatValues = temp;
       } else {
         shuffle(allNumbers);
         seatValues = allNumbers.map(v => exclude.includes(v) ? "" : v);
       }
 
+      // 기존 X 있는 인덱스는 무조건 X로 유지 (자리 범위 내일 때)
+      existingXIndices.forEach(idx => {
+        if (idx < seatValues.length) {
+          seatValues[idx] = "X";
+          seatStates[idx] = "X";
+        }
+      });
+
+      // 기존 seatStates 크기 조정 및 초기화
       seatStates.length = seatValues.length;
-      seatStates.fill(null);
+      for(let i = 0; i < seatStates.length; i++) {
+        if(seatStates[i] !== "X") seatStates[i] = null;
+      }
 
       let columns = 2, rows = 3, sections = 3;
       if (end - start + 1 > 18) {
@@ -160,16 +181,19 @@
         section.style.gridTemplateColumns = `repeat(${columns}, 60px)`;
         section.style.gridTemplateRows = `repeat(${rows}, 60px)`;
 
-        for (let i = 0; i < columns * rows; i++) {
-          const globalIndex = s * columns * rows + i;
-          const val = seatValues[globalIndex] ?? "";
-          section.appendChild(createCell(globalIndex, val));
+        for (let row = 0; row < rows; row++) {
+          for (let col = 0; col < columns; col++) {
+            const localIndex = row * columns + col;
+            const globalIndex = s * columns * rows + localIndex;
+            const val = seatValues[globalIndex] ?? "";
+            section.appendChild(createCell(globalIndex, val));
+          }
         }
         seatLayout.appendChild(section);
       }
 
       const used = 3 * columns * rows;
-      const unplaced = seatValues.slice(used).filter(v => v !== "");
+      const unplaced = seatValues.slice(used).filter(v => v !== "" && v !== "X");
       if (unplaced.length > 0) {
         unplacedBox.style.display = "block";
         unplacedBox.textContent = "배치되지 못한 번호: " + unplaced.join(", ");
